@@ -1,0 +1,1831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lunaris - Saving lives</title>
+
+  <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+
+  <!-- Chart.js for analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* Lunaris purple-black theme */
+    :root{
+      --bg:#000000;
+      --dark:#0b0020;
+      --purple:#8A2BE2;
+      --lav:#B388FF;
+      --cyan:#6FE7E7;
+      --text:#F5F5F5;
+      --muted:#C7C7C7;
+      --alert:#FF3B58;
+      --card-radius:12px;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--dark),#120020 80%);font-family:Inter, Poppins, Arial, sans-serif;color:var(--text);-webkit-font-smoothing:antialiased;}
+    .container{max-width:1100px;margin:18px auto;padding:18px;display:grid;grid-template-columns:640px 1fr;gap:20px;align-items:start;}
+    h1{margin:0 0 8px 0;color:var(--lav);font-weight:600}
+    p.lead{margin:0 0 18px 0;color:var(--muted)}
+    .video-card{background:rgba(255,255,255,0.025);border-radius:var(--card-radius);padding:14px;box-shadow:0 8px 30px rgba(0,0,0,0.6);position:relative}
+    .video-container{position:relative;width:100%;display:flex;justify-content:center}
+    video#webcam{border-radius:10px;max-width:100%;height:auto;transform:scaleX(-1);display:block}
+    canvas#output_canvas{position:absolute;left:50%;transform:translateX(-50%) scaleX(-1);top:14px;border-radius:10px;pointer-events:none}
+    .controls{display:flex;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+    button.primary{background:linear-gradient(90deg,var(--purple),var(--lav));color:#fff;padding:10px 16px;border-radius:10px;border:none;font-weight:600;cursor:pointer;box-shadow:0 6px 18px rgba(138,43,226,0.18)}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer}
+    /* HUD / right column */
+    .hud{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:16px;border-radius:var(--card-radius);min-height:420px;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
+    .stat-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,0.03)}
+    .stat-title{color:var(--muted);font-size:13px}
+    .stat-value{font-weight:700;font-size:20px}
+    .radial{width:180px;height:180px;margin:10px auto;border-radius:50%;background:conic-gradient(var(--lav) 0deg, transparent 0deg);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 -10px 30px rgba(0,0,0,0.5)}
+    .radial .label{font-size:18px;color:var(--muted)}
+    .alert-banner{margin:12px 0;padding:12px;border-radius:10px;text-align:center;font-weight:700;display:none}
+    .alert-normal{background:rgba(106,13,255,0.06);color:var(--lav);border:1px solid rgba(179,120,255,0.06)}
+    .alert-caution{background:rgba(255,180,30,0.06);color:#FFB020;border:1px solid rgba(255,176,32,0.06)}
+    .alert-warning{background:rgba(255,60,88,0.06);color:var(--alert);border:1px solid rgba(255,60,88,0.06)}
+    .small{font-size:13px;color:var(--muted)}
+    .blend-list{margin-top:12px;max-height:220px;overflow:auto;padding:0;list-style:none}
+    .blend-list li{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.02)}
+    .bar{height:8px;background:linear-gradient(90deg,var(--lav),var(--purple));border-radius:8px;flex:1}
+    .footer{margin-top:16px;font-size:13px;color:var(--muted);text-align:center}
+
+    /* Secondary analytics & settings (keeps Lunaris look) */
+    .analytics-wrap{max-width:1100px;margin:22px auto;padding:18px;border-radius:var(--card-radius);background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));box-shadow:0 8px 30px rgba(0,0,0,0.6)}
+    .analytics-grid{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start}
+    .analytics-left{padding:12px}
+    .analytics-right{padding:12px}
+    .summary-cards{display:flex;gap:10px;flex-wrap:wrap}
+    .card-small{background:rgba(255,255,255,0.02);padding:10px;border-radius:10px;flex:1;min-width:120px}
+    .trip-list{margin-top:12px;max-height:200px;overflow:auto;padding:0;list-style:none}
+    .pie-row{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap}
+    .pie-card{background:rgba(255,255,255,0.02);padding:10px;border-radius:10px;min-width:140px;flex:1;text-align:center}
+    .controls .start-btn{background:linear-gradient(90deg,#00c6ff,#0072ff);box-shadow:0 6px 18px rgba(0,114,255,0.12)}
+    .controls .end-btn{background:linear-gradient(90deg,#ff416c,#ff4b2b);box-shadow:0 6px 18px rgba(255,75,43,0.12)}
+    @media(max-width:980px){.container{grid-template-columns:1fr;max-width:760px;padding:12px} canvas#output_canvas{left:50%;transform:translateX(-50%) scaleX(-1) translateY(0)} .analytics-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  
+  <div class="container">
+    <div>
+      <h2>Lunaris. Live Drowsiness Monitor</h2>
+      <p class="lead">Real-Time Drowsiness Alert System :)</p>
+
+      <div class="video-card">
+        <div class="video-container">
+          <video id="webcam" width="640" height="480" autoplay playsinline muted></video>
+          <canvas id="output_canvas" width="640" height="480"></canvas>
+        </div>
+
+        <div class="controls">
+          <button id="webcamButton" class="primary">ENABLE WEBCAM</button>
+          <button id="calibrateBtn" class="ghost">CALIBRATE</button>
+          <button id="demoBtn" class="ghost">DEMO MODE :)</button>
+          <!-- Added controls (do not change existing ones) -->
+          <button id="startTripBtn" class="ghost start-btn">START TRIP</button>
+          <button id="endTripBtn" class="ghost end-btn">END TRIP</button>
+        </div>
+
+        <div id="statusLine" class="small" style="text-align:center;margin-top:10px">Status: <span id="statusText">idle</span></div>
+      </div>
+    </div>
+
+    <aside class="hud">
+        <div class="alert-banner alert-normal" id="alertBanner">Monitoring</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          
+          <div class="small">Session</div>
+          <div class="stat-value" id="sessionTime">00:00:00</div>
+        </div>
+        <div>
+          <div class="small">Blinks / min</div>
+          <div class="stat-value" id="blinkRate">0</div>
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-top:12px">
+        <div class="radial" id="radialRing">
+          <div>
+            <div style="font-size:28px;font-weight:800" id="scoreValue">0%</div>
+            <div class="small">Alertness</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-title">PERCLOS (60s)</div>
+        <div class="stat-value" id="perclosValue">0%</div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-title">Left EAR</div>
+        <div class="stat-value" id="leftEAR">0.00</div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-title">Right EAR</div>
+        <div class="stat-value" id="rightEAR">0.00</div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-title">Blink Count</div>
+        <div class="stat-value" id="blinkCount">0</div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-title">Head Nods</div>
+        <div class="stat-value" id="headNodCount">0</div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-title">Yawns</div>
+        <div class="stat-value" id="yawnCount">0</div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-title">Micro-sleeps</div>
+        <div class="stat-value" id="microSleepCount">0</div>
+      </div>
+
+    
+
+      <h3 style="margin-top:12px;color:var(--muted);font-weight:600">Blendshape & Metrics</h3>
+      <ul id="blendList" class="blend-list"></ul>
+
+      <div class="footer">Lunaris — local demo. UI & features prototyped for the full Lunaris app.</div>
+    </aside>
+  </div>
+
+  <!-- Secondary Analytics Dashboard (added below main UI; matches your style) -->
+  <div class="analytics-wrap" id="analyticsWrap" aria-live="polite">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h2 style="margin:0;color:var(--lav)">Secondary Analytics Dashboard</h2>
+        <div class="small" style="margin-top:6px">Trips saved locally; press START TRIP at beginning and END TRIP to save and update analytics.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="small" id="analyticsStatus">No active trip</div>
+      </div>
+    </div>
+
+    <div class="analytics-grid" style="margin-top:14px">
+      <div class="analytics-left">
+        <div class="summary-cards">
+          <div class="card-small">
+            <div class="small">Total Trips</div>
+            <div id="totalTrips" class="stat-value">0</div>
+          </div>
+          <div class="card-small">
+            <div class="small">Avg Alertness</div>
+            <div id="avgAlertness" class="stat-value">—</div>
+          </div>
+          <div class="card-small">
+            <div class="small">Total Microsleeps</div>
+            <div id="totalMicrosleeps" class="stat-value">0</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <h3 style="color:var(--muted);margin-bottom:8px">Trip History</h3>
+          <ul id="analyticsTripList" class="trip-list small"></ul>
+        </div>
+      </div>
+
+      <div class="analytics-right">
+        <h3 style="margin:0 0 8px 0;color:var(--muted)">Trip Details & Pie Charts</h3>
+        <div id="selectedTripSummary" class="small" style="margin-bottom:8px">Select a trip to view details</div>
+
+        <div class="pie-row">
+          <div class="pie-card"><canvas id="pieEvents" width="160" height="160"></canvas><div class="small" style="margin-top:8px">Event Distribution</div></div>
+          <div class="pie-card"><canvas id="pieSeverity" width="160" height="160"></canvas><div class="small" style="margin-top:8px">Alert Severity</div></div>
+          <div class="pie-card"><canvas id="pieBlink" width="160" height="160"></canvas><div class="small" style="margin-top:8px">Blink vs Time</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import vision from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+    const { FaceLandmarker, FilesetResolver, DrawingUtils } = vision;
+
+    // --- original DOM refs & state (kept unchanged) ---
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('output_canvas');
+    const ctx = canvas.getContext('2d');
+    const webcamBtn = document.getElementById('webcamButton');
+    const calibrateBtn = document.getElementById('calibrateBtn');
+    const demoBtn = document.getElementById('demoBtn');
+    const statusText = document.getElementById('statusText');
+    const perclosEl = document.getElementById('perclosValue');
+    const leftEAREl = document.getElementById('leftEAR');
+    const rightEAREl = document.getElementById('rightEAR');
+    const blinkCountEl = document.getElementById('blinkCount');
+    const blinkRateEl = document.getElementById('blinkRate');
+    const blendList = document.getElementById('blendList');
+    const radialRing = document.getElementById('radialRing');
+    const scoreValue = document.getElementById('scoreValue');
+    const alertBanner = document.getElementById('alertBanner');
+    const sessionTimeEl = document.getElementById('sessionTime');
+    const headNodEl = document.getElementById('headNodCount');
+    const yawnEl = document.getElementById('yawnCount');
+    const microSleepEl = document.getElementById('microSleepCount');
+
+    // Start/End Trip buttons & analytics DOM
+    const startTripBtn = document.getElementById('startTripBtn');
+    const endTripBtn = document.getElementById('endTripBtn');
+    const analyticsStatus = document.getElementById('analyticsStatus');
+    const analyticsTripList = document.getElementById('analyticsTripList');
+    const totalTripsEl = document.getElementById('totalTrips');
+    const avgAlertnessEl = document.getElementById('avgAlertness');
+    const totalMicrosleepsEl = document.getElementById('totalMicrosleeps');
+    const selectedTripSummary = document.getElementById('selectedTripSummary');
+
+    // Original landmark indices & other original variables (kept intact)
+    const RIGHT_EYE = [33, 160, 158, 133, 153, 144];
+    const LEFT_EYE = [263, 387, 385, 362, 380, 373];
+    let faceLandmarker = null;
+    let runningMode = 'IMAGE';
+    let webcamRunning = false;
+    let lastVideoTime = -1;
+    let results = null;
+    let drawingUtils;
+    let sessionStart = null;
+
+    // original metric buffers & thresholds
+    let earWindow = [];
+    let perclosWindow = [];
+    const FRAME_RATE = 10;
+    const WINDOW_SECONDS = 60;
+    const WINDOW_FRAMES = WINDOW_SECONDS * FRAME_RATE;
+    let blinkCount = 0;
+    let blinkTimestamps = [];
+    let isEyeClosed = false;
+    let eyeClosedStart = 0;
+    let suppression = { level: null, ts: 0 };
+    let headNodCount = 0;
+    let yawnCount = 0;
+    let microSleepCount = 0;
+    window._noseHist = []; // normalized y history
+    const NOSE_HISTORY_SECONDS = 3;
+    const NOSE_HISTORY_FRAMES = NOSE_HISTORY_SECONDS * FRAME_RATE;
+    let lastNodTime = 0;
+
+    const EAR_THRESHOLD = 0.18;
+    const BLEND_EYE_THRESH = 0.35;
+    const BLINK_MIN_MS = 50;
+    const BLINK_MAX_MS = 700;
+    const MICRO_SLEEP_DURATION = 1000;
+    const PERCLOS_WINDOW = WINDOW_FRAMES;
+    const CAUTION_SCORE = 30;
+    const WARNING_SCORE = 55;
+    const CRITICAL_SCORE = 75;
+
+    // microsleep beep (CodePen-safe + continuous tone until stopped)
+let audioCtx = null;
+let beepOsc = null;
+let beepGain = null;
+let beepLooping = false;
+
+function unlockAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+}
+
+document.addEventListener("click", unlockAudio, { once: true });
+document.addEventListener("touchstart", unlockAudio, { once: true });
+
+function startLoudBeep() {
+  try {
+    if (beepLooping) return;
+    unlockAudio();
+
+    beepOsc = audioCtx.createOscillator();
+    beepGain = audioCtx.createGain();
+
+    beepOsc.type = "square";      // loud and sharp enough to wake
+    beepOsc.frequency.value = 600; // comfortable but alarming tone
+    beepOsc.connect(beepGain);
+    beepGain.connect(audioCtx.destination);
+
+    // ramp up volume smoothly
+    beepGain.gain.setValueAtTime(0.001, audioCtx.currentTime);
+    beepGain.gain.exponentialRampToValueAtTime(0.6, audioCtx.currentTime + 0.05);
+
+    beepOsc.start();
+    beepLooping = true;
+
+    console.log("🚨 Microsleep alert started (continuous tone)");
+  } catch (e) {
+    console.warn("beep failed", e);
+  }
+}
+
+function stopLoudBeep() {
+  try {
+    if (!beepLooping || !beepGain || !beepOsc) return;
+
+    // smooth fade out
+    beepGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
+    setTimeout(() => {
+      try {
+        beepOsc.stop();
+        beepOsc.disconnect();
+        beepGain.disconnect();
+      } catch (err) {}
+      beepLooping = false;
+    }, 200);
+
+    console.log("🟢 Microsleep alert stopped");
+  } catch (e) {
+    console.warn("stop beep failed", e);
+  }
+}
+
+// ✅ Keep the normal chime for other alerts
+function playChime(urgent = false) {
+  try {
+    unlockAudio();
+    const ctxA = audioCtx;
+    const o = ctxA.createOscillator();
+    const g = ctxA.createGain();
+
+    o.type = "triangle";
+    o.frequency.value = urgent ? 850 : 500;
+    o.connect(g);
+    g.connect(ctxA.destination);
+
+    const now = ctxA.currentTime;
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.exponentialRampToValueAtTime(0.4, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, now + (urgent ? 0.7 : 0.4));
+
+    o.start(now);
+    o.stop(now + (urgent ? 0.8 : 0.45));
+  } catch (e) {}
+}
+
+    // create model (unchanged)
+    async function createFaceLandmarker(){
+      statusText.innerText = 'loading model...';
+      const filesetResolver = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm');
+      faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+          delegate: 'GPU'
+        },
+        outputFaceBlendshapes: true,
+        runningMode,
+        numFaces: 1
+      });
+      drawingUtils = new DrawingUtils(ctx);
+      statusText.innerText = 'model loaded';
+      alertBanner.style.display = 'block';
+      alertBanner.className = 'alert-banner alert-normal';
+      alertBanner.innerText = 'Ready — press ENABLE WEBCAM';
+    }
+    await createFaceLandmarker();
+
+    // camera controls (unchanged except we don't touch UI behavior)
+    webcamBtn.addEventListener('click', toggleCam);
+    calibrateBtn.addEventListener('click', runCalibration);
+    demoBtn.addEventListener('click', runDemoMode);
+
+    function toggleCam(){
+      if(!faceLandmarker){
+        alert('Model not loaded yet.');
+        return;
+      }
+      if(webcamRunning) stopCamera();
+      else startCamera();
+    }
+
+    function startCamera(){
+      const constraints = { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }, audio:false };
+      navigator.mediaDevices.getUserMedia(constraints).then(stream=>{
+        video.srcObject = stream;
+        webcamRunning = true;
+        webcamBtn.innerText = 'DISABLE WEBCAM';
+        // keep original behavior: sessionStart set on camera start (unchanged)
+        sessionStart = Date.now();
+        video.addEventListener('loadeddata', () => {
+          resizeCanvas();
+          predictWebcam();
+        }, { once: true });
+        statusText.innerText = 'camera running';
+        alertBanner.innerText = 'Monitoring active';
+      }).catch(err=>{
+        console.error(err);
+        alert('Camera access denied or not available.');
+      });
+    }
+
+    function stopCamera(){
+      const stream = video.srcObject;
+      if(stream) stream.getTracks().forEach(t=>t.stop());
+      webcamRunning = false;
+      webcamBtn.innerText = 'ENABLE WEBCAM';
+      statusText.innerText = 'idle';
+      alertBanner.innerText = 'Monitoring paused';
+      stopLoudBeep();
+    }
+
+    function resizeCanvas(){
+      const vw = video.videoWidth || 640;
+      const vh = video.videoHeight || 480;
+      canvas.width = vw;
+      canvas.height = vh;
+      canvas.style.width = vw + 'px';
+      canvas.style.height = vh + 'px';
+    }
+
+    // Demo mode (unchanged)
+    let demoInterval = null;
+    function runDemoMode(){
+      if(demoInterval){
+        clearInterval(demoInterval); demoInterval = null; demoBtn.innerText = 'DEMO MODE';
+        alertBanner.innerText = 'Demo stopped';
+        return;
+      }
+      demoBtn.innerText = 'STOP DEMO';
+      alertBanner.innerText = 'Demo running (simulated)';
+      demoInterval = setInterval(()=>{
+        const fakeLeft = Math.max(0, 0.25 + (Math.random()-0.5)*0.12);
+        const fakeRight = Math.max(0, 0.23 + (Math.random()-0.5)*0.12);
+        const fakeJaw = Math.random() < 0.02 ? 0.9 : Math.random()*0.2;
+        handleFrameMetrics({leftEAR:fakeLeft, rightEAR:fakeRight, blendShapes: [{categories:[
+          {categoryName:'eyeBlinkLeft', score: fakeLeft>0.3?0.5:0.05, displayName:'Eye Left'},
+          {categoryName:'eyeBlinkRight', score: fakeRight>0.3?0.5:0.05, displayName:'Eye Right'},
+          {categoryName:'jawOpen', score: fakeJaw, displayName:'Jaw Open'}
+        ]}]});
+      }, 1000/FRAME_RATE);
+    }
+
+    // calibration (unchanged but still present)
+    async function runCalibration(){
+      if(!webcamRunning) { alert('Start camera first'); return; }
+      statusText.innerText = 'calibrating... look at camera';
+      const samples = 40;
+      let totalLeft=0, totalRight=0, count=0;
+      return new Promise(resolve=>{
+        let iter=0;
+        const loop = ()=>{
+          iter++;
+          if(!webcamRunning) return;
+          if(results && results.faceLandmarks && results.faceLandmarks[0]){
+            const lm = results.faceLandmarks[0];
+            const left = computeEAR(lm, LEFT_EYE);
+            const right = computeEAR(lm, RIGHT_EYE);
+            totalLeft+=left; totalRight+=right; count++;
+          }
+          if(count>=samples){
+            statusText.innerText = 'calibration complete';
+            const baselineLeft = totalLeft/count;
+            const baselineRight = totalRight/count;
+            alert('Calibration done. Baseline EAR - left: '+baselineLeft.toFixed(3)+', right: '+baselineRight.toFixed(3));
+            resolve();
+            return;
+          }
+          if(iter<1000) requestAnimationFrame(loop);
+        };
+        loop();
+      });
+    }
+
+    // ---------- NEW: Trip/session variables (do not overwrite original counters) ----------
+    let tripActive = false;
+    let tripStartTs = null;
+    let tripBlinkCount = 0;
+    let tripBlinkTimestamps = [];
+    let tripHeadNodCount = 0;
+    let tripYawnCount = 0;
+    let tripMicroSleepCount = 0;
+    let tripEarSum = 0;
+    let tripEarSamples = 0;
+    let tripFrameCount = 0;
+    let tripSeverityCounts = { normal:0, caution:0, warning:0, critical:0 };
+    let lastScore = 0;
+
+    // helper to reset trip counters
+    function resetTripCounters(){
+      tripBlinkCount = 0;
+      tripBlinkTimestamps = [];
+      tripHeadNodCount = 0;
+      tripYawnCount = 0;
+      tripMicroSleepCount = 0;
+      tripEarSum = 0;
+      tripEarSamples = 0;
+      tripFrameCount = 0;
+      tripSeverityCounts = { normal:0, caution:0, warning:0, critical:0 };
+      lastScore = 0;
+    }
+
+    // ---------- main predictor loop (unchanged behavior, but we add trip data collection) ----------
+    async function predictWebcam(){
+      if(!webcamRunning) return;
+      resizeCanvas();
+
+      if(runningMode === 'IMAGE'){
+        runningMode = 'VIDEO';
+        await faceLandmarker.setOptions({runningMode:'VIDEO'});
+      }
+
+      let startTimeMs = performance.now();
+      if(lastVideoTime !== video.currentTime){
+        lastVideoTime = video.currentTime;
+        results = faceLandmarker.detectForVideo(video, startTimeMs);
+      }
+
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.save();
+
+      if(results && results.faceLandmarks && results.faceLandmarks.length>0){
+        const landmarks = results.faceLandmarks[0];
+        drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_TESSELATION, {color:'#B388FF50', lineWidth:1});
+        drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, {color:'#8A2BE2'});
+        drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, {color:'#8A2BE2'});
+        drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, {color:'#ffffff30'});
+
+        const leftEAR = computeEAR(landmarks, LEFT_EYE);
+        const rightEAR = computeEAR(landmarks, RIGHT_EYE);
+
+        handleFrameMetrics({leftEAR, rightEAR, blendShapes: results.faceBlendshapes || []});
+        drawEyeCenters(landmarks, LEFT_EYE, '#30FFAA');
+        drawEyeCenters(landmarks, RIGHT_EYE, '#FF6B6B');
+
+        // nose Y history (for head nod)
+        try{
+          const noseY = landmarks[1].y;
+          window._noseHist.push({y:noseY, t:Date.now()});
+          if(window._noseHist.length > NOSE_HISTORY_FRAMES) window._noseHist.shift();
+          detectHeadNod();
+        }catch(e){}
+      } else {
+        statusText.innerText = 'face not detected';
+      }
+
+      ctx.restore();
+
+      // session time update
+      if(sessionStart){
+        const s = Math.floor((Date.now()-sessionStart)/1000);
+        sessionTimeEl.innerText = new Date(s * 1000).toISOString().substr(11, 8);
+      }
+
+      if(webcamRunning) requestAnimationFrame(predictWebcam);
+    }
+
+    // drawing helpers (unchanged)
+    function drawEyeCenters(landmarks, eyeIdxs, color='#FFF'){
+      const pts = eyeIdxs.map(i=>landmarks[i]);
+      const cx = pts.reduce((s,p)=>s+p.x,0)/pts.length * canvas.width;
+      const cy = pts.reduce((s,p)=>s+p.y,0)/pts.length * canvas.height;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, Math.PI*2);
+      ctx.fillStyle = color; ctx.fill();
+    }
+
+    // compute EAR (unchanged)
+    function computeEAR(landmarks, idxs){
+      try{
+        const p1 = landmarks[idxs[0]];
+        const p2 = landmarks[idxs[1]];
+        const p3 = landmarks[idxs[2]];
+        const p4 = landmarks[idxs[3]];
+        const p5 = landmarks[idxs[4]];
+        const p6 = landmarks[idxs[5]];
+        const toPx = (p)=>({x: p.x * canvas.width, y: p.y * canvas.height});
+        const P1 = toPx(p1), P2 = toPx(p2), P3 = toPx(p3), P4 = toPx(p4), P5 = toPx(p5), P6 = toPx(p6);
+        const dist = (a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+        const vert1 = dist(P2,P6);
+        const vert2 = dist(P3,P5);
+        const hor = dist(P1,P4);
+        if(hor===0) return 0;
+        const ear = (vert1 + vert2) / (2.0 * hor);
+        return ear;
+      } catch(e){
+        return 0;
+      }
+    }
+
+    function getBlendScore(blendShapes, name){
+      if(!blendShapes?.[0]?.categories) return 0;
+      const f = blendShapes[0].categories.find(c=>c.categoryName===name || c.displayName===name);
+      return f ? f.score : 0;
+    }
+
+    // ---------- handleFrameMetrics (keeps original behavior, adds trip tracking & lastScore) ----------
+    function handleFrameMetrics({leftEAR, rightEAR, blendShapes}){
+
+      // combine blendshape detection and EAR for robustness
+      const blendLeft = getBlendScore(blendShapes, 'eyeBlinkLeft');
+      const blendRight = getBlendScore(blendShapes, 'eyeBlinkRight');
+      const jawOpen = getBlendScore(blendShapes, 'jawOpen');
+
+      // push into rolling arrays
+      const avgEAR = (leftEAR + rightEAR)/2;
+      earWindow.push(avgEAR);
+      if(earWindow.length > WINDOW_FRAMES) earWindow.shift();
+
+      // if trip active, accumulate EAR for averages
+      if(tripActive){
+        tripEarSum += avgEAR;
+        tripEarSamples++;
+      }
+
+      // closure from either metric
+      const closedByEAR = avgEAR < EAR_THRESHOLD ? 1 : 0;
+      const closedByBlend = (blendLeft > BLEND_EYE_THRESH || blendRight > BLEND_EYE_THRESH) ? 1 : 0;
+      const closed = (closedByEAR || closedByBlend) ? 1 : 0;
+
+      perclosWindow.push(closed);
+      if(perclosWindow.length > PERCLOS_WINDOW) perclosWindow.shift();
+
+      // blink detection: transition open->closed->open
+      if(closed && !isEyeClosed){
+        isEyeClosed = true;
+        eyeClosedStart = Date.now();
+      }
+      if(!closed && isEyeClosed){
+        const dur = Date.now() - eyeClosedStart;
+        isEyeClosed = false;
+        if(dur >= BLINK_MIN_MS && dur <= BLINK_MAX_MS){
+          // blink detected
+          blinkCount++;
+          blinkCountEl.innerText = blinkCount;
+          blinkTimestamps.push(Date.now());
+          // Trim
+          const oneMinAgo = Date.now() - 60000;
+          blinkTimestamps = blinkTimestamps.filter(t => t >= oneMinAgo);
+          blinkRateEl.innerText = blinkTimestamps.length;
+
+          // trip tracking
+          if(tripActive){
+            tripBlinkCount++;
+            tripBlinkTimestamps.push(Date.now());
+          }
+        } else if(dur > BLINK_MAX_MS && dur < MICRO_SLEEP_DURATION){
+          // long blink - no count change
+        } else if(dur >= MICRO_SLEEP_DURATION){
+          // micro-sleep on open
+          microSleepCount++;
+          microSleepEl.innerText = microSleepCount;
+          playChime(true);
+          if(tripActive){ tripMicroSleepCount++; }
+        }
+        // ensure loud beep stops when eyes open
+        stopLoudBeep();
+      }
+
+      // if eyes still closed > MICRO_SLEEP_DURATION, trigger loud beep & micro-sleep state
+      if(closed && eyeClosedStart){
+        const dur = Date.now() - eyeClosedStart;
+        if(dur >= MICRO_SLEEP_DURATION){
+          if(!window._lastMicroSleepTs || Date.now() - window._lastMicroSleepTs > 1500){
+            window._lastMicroSleepTs = Date.now();
+            microSleepCount++;
+            microSleepEl.innerText = microSleepCount;
+            if(tripActive){ tripMicroSleepCount++; }
+          }
+          startLoudBeep();
+          alertBanner.className = 'alert-banner alert-warning';
+          alertBanner.innerText = 'ALERT: Eyes closed > 2s — WAKE UP!';
+        }
+      }
+
+      // PERCLOS percent
+      const closedCount = perclosWindow.reduce((s,v)=>s+v,0);
+      const perclosPct = perclosWindow.length ? Math.round((closedCount / perclosWindow.length) * 100) : 0;
+      perclosEl.innerText = perclosPct + '%';
+
+      // update EAR displays
+      leftEAREl.innerText = leftEAR.toFixed(3);
+      rightEAREl.innerText = rightEAR.toFixed(3);
+
+      // yawn detection (jawOpen)
+      if(jawOpen > 0.6){
+        if(!window._lastYawnTs || Date.now() - window._lastYawnTs > 1500){
+          yawnCount++;
+          window._lastYawnTs = Date.now();
+          yawnEl.innerText = yawnCount;
+          playChime(false);
+          alertBanner.className = 'alert-banner alert-caution';
+          alertBanner.innerText = 'Yawn detected — stay alert';
+          if(tripActive) tripYawnCount++;
+        }
+      }
+
+      // head nod detection (function will update headNodCount)
+      detectHeadNod();
+
+      // composite score calculation
+      const blinksPerMin = blinkTimestamps.filter(t => t >= Date.now()-60000).length;
+      let blinkDeficit = 0;
+      if(blinksPerMin < 6) blinkDeficit = Math.min(1, (6 - blinksPerMin) / 6);
+
+      let headNodIndex = 0;
+      try{
+        const arr = window._noseHist.map(x=>x.y);
+        if(arr.length > 1){
+          headNodIndex = (Math.max(...arr) - Math.min(...arr)) * 1000;
+        }
+      } catch(e){ headNodIndex = 0; }
+
+      const score = Math.round(Math.min(100,
+        perclosPct * 0.4 + blinkDeficit * 100 * 0.2 + Math.min(100, headNodIndex*2) * 0.2 + 0
+      ));
+
+      // save lastScore for analytics
+      lastScore = score;
+
+      // update radial UI color and value
+      scoreValue.innerText = score + '%';
+      const color = score < CAUTION_SCORE ? 'linear-gradient(90deg,var(--lav),var(--purple))'
+        : score < WARNING_SCORE ? 'linear-gradient(90deg,#FFB020,#FF8A00)'
+        : score < CRITICAL_SCORE ? 'linear-gradient(90deg,#FF6B6B,#FF3B58)' : 'linear-gradient(90deg,#FF3B58,#B22222)';
+      radialRing.style.background = color;
+
+      // if tripActive accumulate severity frame counts
+      if(tripActive){
+        tripFrameCount++;
+        if(score >= CRITICAL_SCORE) tripSeverityCounts.critical++;
+        else if(score >= WARNING_SCORE) tripSeverityCounts.warning++;
+        else if(score >= CAUTION_SCORE) tripSeverityCounts.caution++;
+        else tripSeverityCounts.normal++;
+      }
+
+      // update alert logic (unchanged)
+      updateAlertState(score);
+
+      // update blendshapes list
+      updateBlendShapes(blendShapes || []);
+
+      // update counters in HUD
+      blinkCountEl.innerText = blinkCount;
+      headNodEl.innerText = headNodCount;
+      yawnEl.innerText = yawnCount;
+      microSleepEl.innerText = microSleepCount;
+    }
+
+    // ---------- improved head-nod detection (less jitter, requires sustained downward movement) ----------
+    function detectHeadNod(){
+      try{
+        const hist = window._noseHist || [];
+        if(hist.length < 8) return;
+        const now = Date.now();
+        const windowMs = 1800; // slightly longer window for more robust nod detection
+        const windowed = hist.filter(h => now - h.t <= windowMs);
+        if(windowed.length < 6) return;
+        const yvals = windowed.map(h=>h.y);
+        const maxY = Math.max(...yvals);
+        const minY = Math.min(...yvals);
+        const amp = Math.abs(maxY - minY);
+        // stronger amplitude threshold to avoid small movements
+        const NOD_AMPLITUDE_THRESH = 0.020; // increased sensitivity threshold
+        if(amp > NOD_AMPLITUDE_THRESH && (!lastNodTime || Date.now() - lastNodTime > 900)){
+          // require a recognizable downward motion then quick upward recovery
+          const midIndex = Math.floor(yvals.length/2);
+          const firstHalf = yvals.slice(0, midIndex);
+          const secondHalf = yvals.slice(midIndex);
+          const avgFirst = firstHalf.reduce((s,v)=>s+v,0)/firstHalf.length;
+          const avgSecond = secondHalf.reduce((s,v)=>s+v,0)/secondHalf.length;
+          // In normalized coords, larger Y = lower on image -> head down increases y
+          if(avgSecond - avgFirst > 0.008){ // stricter relative movement
+            headNodCount++;
+            headNodEl.innerText = headNodCount;
+            lastNodTime = Date.now();
+            playChime(false);
+            alertBanner.className = 'alert-banner alert-caution';
+            alertBanner.innerText = 'Head nod detected — possible drowsiness';
+            if(tripActive) tripHeadNodCount++;
+          }
+        }
+      }catch(e){}
+    }
+
+    // updateAlertState (unchanged except trip unaffected)
+    function updateAlertState(score){
+      const now = Date.now();
+      if(score >= CRITICAL_SCORE){
+        if(suppression.level !== 'critical' || now - suppression.ts > 30000){
+          suppression = {level:'critical', ts: now};
+          alertBanner.className = 'alert-banner alert-warning';
+          alertBanner.innerText = 'CRITICAL: Severe drowsiness detected — STOP driving';
+          playChime(true);
+          startLoudBeep();
+        }
+      } else if(score >= WARNING_SCORE){
+        if(suppression.level !== 'warning' || now - suppression.ts > 120000){
+          suppression = {level:'warning', ts: now};
+          alertBanner.className = 'alert-banner alert-warning';
+          alertBanner.innerText = 'Warning: You appear drowsy — pull over safely';
+          playChime(true);
+        }
+      } else if(score >= CAUTION_SCORE){
+        if(suppression.level !== 'caution' || now - suppression.ts > 30000){
+          suppression = {level:'caution', ts: now};
+          alertBanner.className = 'alert-banner alert-caution';
+          alertBanner.innerText = 'Caution: Slight drowsiness detected — focus on the road';
+          playChime(false);
+        }
+      } else {
+        if(suppression.level !== null){
+          suppression = {level:null, ts: now};
+          alertBanner.className = 'alert-banner alert-normal';
+          alertBanner.innerText = 'Monitoring';
+          stopLoudBeep();
+        }
+      }
+    }
+
+    // combine with existing blendshape display (unchanged)
+    function updateBlendShapes(bs){
+      if(!bs || !bs.length) { blendList.innerHTML = '<li class="small">No blendshapes</li>'; return; }
+      const cats = bs[0].categories || [];
+      let html = '';
+      cats.forEach(c=>{
+        const name = c.displayName || c.categoryName || 'unknown';
+        const pct = (c.score*100).toFixed(2);
+        html += `<li><div style="width:160px;color:var(--muted)">${name}</div><div style="flex:1"><div class="bar" style="width:${c.score*100}%"></div></div><div style="width:48px;text-align:right;color:var(--muted)">${pct}%</div></li>`;
+      });
+      blendList.innerHTML = html;
+    }
+
+    // ---------- Trip storage & analytics logic ----------
+    function saveTripToStorage(trip){
+      const existing = JSON.parse(localStorage.getItem('lunaris_trips') || '[]');
+      existing.push(trip);
+      localStorage.setItem('lunaris_trips', JSON.stringify(existing));
+    }
+
+    function loadTripsFromStorage(){
+      return JSON.parse(localStorage.getItem('lunaris_trips') || '[]');
+    }
+
+    // build trip summary and save
+    function endTripSave(){
+      if(!tripActive){
+        ;
+        return;
+      }
+      const now = Date.now();
+      const durationSec = Math.floor((now - tripStartTs)/1000);
+      const avgEAR = tripEarSamples ? (tripEarSum / tripEarSamples) : 0;
+      const blinksPerMin = tripBlinkTimestamps.filter(t => t >= now - 60000).length;
+      const trip = {
+        id: 'trip_' + tripStartTs,
+        startTs: tripStartTs,
+        endTs: now,
+        durationSec,
+        blinks: tripBlinkCount,
+        blinksPerMin: Math.round((tripBlinkTimestamps.length) / Math.max(1, durationSec/60)),
+        headNods: tripHeadNodCount,
+        yawns: tripYawnCount,
+        microsleeps: tripMicroSleepCount,
+        avgEAR: parseFloat(avgEAR.toFixed(3)),
+        severityCounts: {...tripSeverityCounts}
+      };
+      saveTripToStorage(trip);
+      tripActive = false;
+      tripStartTs = null;
+      analyticsStatus.innerText = 'No active trip';
+      updateAnalyticsUI();
+      
+    }
+
+    // Start trip
+    function startTrip(){
+      if(tripActive){
+        alert('Trip already active.');
+        return;
+      }
+      resetTripCounters();
+      tripActive = true;
+      tripStartTs = Date.now();
+      analyticsStatus.innerText = 'Trip running';
+    }
+
+    // Attach to UI buttons
+    startTripBtn.addEventListener('click', startTrip);
+    endTripBtn.addEventListener('click', () => {
+      // Stop trip and save
+      endTripSave();
+    });
+
+    // Update analytics UI
+    let pieEventsChart = null;
+    let pieSeverityChart = null;
+    let pieBlinkChart = null;
+
+    function updateAnalyticsUI(){
+      const trips = loadTripsFromStorage().reverse();
+      // populate list
+      analyticsTripList.innerHTML = trips.map(t=>{
+        const dt = new Date(t.startTs);
+        return `<li style="padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03)"><div style="display:flex;justify-content:space-between;align-items:center"><div><strong>${dt.toLocaleString()}</strong><div class="small">Duration ${Math.floor(t.durationSec/60)}m ${t.durationSec%60}s</div></div><div style="text-align:right"><div class="small">Avg Alertness: ${computeAvgAlertness(t)}%</div><button class="ghost small viewTripBtn" data-tripid="${t.id}" style="margin-top:6px">View</button></div></div></li>`;
+      }).join('') || '<li class="small" style="padding:8px">No trips saved</li>';
+
+      // attach view handlers
+      document.querySelectorAll('.viewTripBtn').forEach(btn=>{
+        btn.addEventListener('click', ()=> {
+          const id = btn.getAttribute('data-tripid');
+          showTripDetails(id);
+        });
+      });
+
+      // update summary cards
+      const allTrips = loadTripsFromStorage();
+      totalTripsEl.innerText = allTrips.length;
+      const totalMicros = allTrips.reduce((s,t)=>s + (t.microsleeps||0), 0);
+      totalMicrosleepsEl.innerText = totalMicros;
+      const avgAlertAll = allTrips.length ? Math.round(allTrips.reduce((s,t)=>s + (computeAvgAlertness(t)||0), 0)/allTrips.length) : '—';
+      avgAlertnessEl.innerText = avgAlertAll;
+
+      // if there is a most recent trip, show its charts
+      if(allTrips.length) showTripDetails(allTrips[allTrips.length - 1].id);
+    }
+
+    function computeAvgAlertness(trip){
+      // reconstruct avg alertness percentage from severity counts as a rough proxy
+      if(!trip || !trip.severityCounts) return 0;
+      const sc = trip.severityCounts;
+      const totalFrames = (sc.normal + sc.caution + sc.warning + sc.critical) || 1;
+      // map categories to alertness values
+      const weighted = sc.normal*90 + sc.caution*70 + sc.warning*45 + sc.critical*15;
+      return Math.round(weighted / totalFrames);
+    }
+
+    function showTripDetails(tripId){
+      const trips = loadTripsFromStorage();
+      const trip = trips.find(t=>t.id === tripId);
+      if(!trip) return;
+      selectedTripSummary.innerHTML = `
+        <div><strong>Trip from ${new Date(trip.startTs).toLocaleString()}</strong></div>
+        <div class="small">Duration: ${Math.floor(trip.durationSec/60)}m ${trip.durationSec%60}s</div>
+        <div class="small">Blinks: ${trip.blinks} • Blink rate: ${trip.blinksPerMin} /min</div>
+        <div class="small">Head nods: ${trip.headNods} • Yawns: ${trip.yawns} • Microsleeps: ${trip.microsleeps}</div>
+        <div class="small">Avg EAR: ${trip.avgEAR}</div>
+      `;
+
+      // Pie 1: Event distribution (blinks, yawns, head nods, microsleeps)
+      const events = [trip.blinks || 0, trip.yawns || 0, trip.headNods || 0, trip.microsleeps || 0];
+      const labelsEvents = ['Blinks','Yawns','Head Nods','Microsleeps'];
+      renderPie('pieEvents', labelsEvents, events, [getCssVar('--lav'), getCssVar('--cyan'), '#FFD37B', getCssVar('--alert')], (c)=> pieEventsChart = c);
+
+      // Pie 2: Severity distribution from trip.severityCounts
+      const sc = trip.severityCounts || {normal:0,caution:0,warning:0,critical:0};
+      const severityValues = [sc.normal, sc.caution, sc.warning, sc.critical];
+      const severityLabels = ['Normal','Caution','Warning','Critical'];
+      renderPie('pieSeverity', severityLabels, severityValues, [getCssVar('--muted'),'#FFB020','#FF6B6B','#B22222'], (c)=> pieSeverityChart = c);
+
+      // Pie 3: Blink vs no-blink frames (approx)
+      const blinkFrames = trip.blinks || 0;
+      // infer frames ~ trip.severityCounts total
+      const totalFrames = (sc.normal + sc.caution + sc.warning + sc.critical) || Math.max(1, trip.durationSec * (FRAME_RATE || 10));
+      const nonBlink = Math.max(0, totalFrames - blinkFrames);
+      renderPie('pieBlink', ['Blink Frames','Other Frames'], [blinkFrames, nonBlink], [getCssVar('--lav'), 'rgba(255,255,255,0.06)'], (c)=> pieBlinkChart = c);
+    }
+
+    function renderPie(canvasId, labels, data, colors, setChartRef){
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      if(setChartRef && typeof setChartRef === 'function' && window[canvasId + 'Chart']){
+        try{ window[canvasId + 'Chart'].destroy(); }catch(e){}
+      }
+      const cfg = {
+        type: 'pie',
+        data: { labels, datasets: [{ data, backgroundColor: colors || [getCssVar('--lav'), getCssVar('--cyan'), getCssVar('--purple')], borderWidth: 0 }] },
+        options: { plugins:{legend:{position:'bottom',labels:{color:getCssVar('--muted')}}}, responsive:true, maintainAspectRatio:true }
+      };
+      const c = new Chart(ctx, cfg);
+      window[canvasId + 'Chart'] = c;
+      if(setChartRef) setChartRef(c);
+    }
+
+    // helper to read CSS var
+    function getCssVar(name){
+      return getComputedStyle(document.documentElement).getPropertyValue(name) || '#fff';
+    }
+
+    // initialize analytics UI on load
+    updateAnalyticsUI();
+
+    // when page unload, if a trip is active save it
+    window.addEventListener('beforeunload', ()=>{
+      if(tripActive) endTripSave();
+      if(video.srcObject) video.srcObject.getTracks().forEach(t=>t.stop());
+      stopLoudBeep();
+    });
+
+    // Expose endTripSave for the earlier suggested endTrip hook (if any)
+    window.endTripSave = endTripSave;
+
+    // End of module script
+  </script>
+  <!-- ====================================================== -->
+<!-- 🚨 LUNARIS PANIC / EMERGENCY SYSTEM (Full Integration) -->
+<!-- ====================================================== -->
+
+<style>
+  /* Floating panic button */
+  #panicButton {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 95px;
+    height: 95px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #ff2222, #660000);
+    color: #fff;
+    font-weight: bold;
+    font-family: "Orbitron", sans-serif;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-shadow: 0 0 30px #ff0000aa, inset 0 0 10px #ff0000;
+    cursor: pointer;
+    user-select: none;
+    z-index: 9999;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  #panicButton:active {
+    transform: translateX(-50%) scale(0.95);
+    box-shadow: 0 0 10px #ff0000;
+  }
+
+  /* Overlay */
+  #panicOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.92);
+    color: #fff;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-family: "Segoe UI", sans-serif;
+    z-index: 10000;
+    text-align: center;
+    transition: background 0.5s ease;
+  }
+  #panicOverlay.active {
+    display: flex;
+  }
+
+  #panicCountdown {
+    font-size: 5rem;
+    font-weight: bold;
+    margin-top: 10px;
+    color: #ff4444;
+    text-shadow: 0 0 15px #ff0000;
+  }
+
+  .panic-btn {
+    margin-top: 20px;
+    padding: 12px 25px;
+    background: #222;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 0 10px #ff0000aa;
+  }
+  .panic-btn:hover {
+    background: #444;
+  }
+
+  #panicOverlay.alert-mode {
+    background: linear-gradient(135deg, #ff0000, #660000);
+    animation: redPulse 1s infinite alternate;
+  }
+  @keyframes redPulse {
+    0% { filter: brightness(1); }
+    100% { filter: brightness(1.5); }
+  }
+</style>
+
+<!-- HTML structure -->
+<div id="panicButton">PANIC</div>
+
+<div id="panicOverlay">
+  <h1 id="panicTitle">Emergency Mode Activated</h1>
+  <div id="panicCountdown">20</div>
+  <p id="panicMessage">Hold tight — you have 20 seconds to cancel before escalation.</p>
+  <div id="panicActions">
+    <button id="panicCancel" class="panic-btn">I'm OK — Cancel</button>
+    <button id="panicCall" class="panic-btn">📞 Call Emergency Services</button>
+    <button id="panicLocation" class="panic-btn">📍 Send Location Only</button>
+  </div>
+</div>
+
+<script>
+  // ======== AUDIO ASSETS ========
+  const siren = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_c4b41aef61.mp3?filename=police-siren-01-10249.mp3");
+  siren.loop = true;
+
+  const beep = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_bf2d9ab8e1.mp3?filename=beep-6-96243.mp3");
+
+  // ======== ELEMENTS ========
+  const panicBtn = document.getElementById("panicButton");
+  const overlay = document.getElementById("panicOverlay");
+  const countdownEl = document.getElementById("panicCountdown");
+  const messageEl = document.getElementById("panicMessage");
+  const cancelBtn = document.getElementById("panicCancel");
+  const callBtn = document.getElementById("panicCall");
+  const locationBtn = document.getElementById("panicLocation");
+  const titleEl = document.getElementById("panicTitle");
+
+  let holdTimer, countdownTimer, secondsLeft = 20, active = false;
+
+  // ======== LONG PRESS DETECTION ========
+  panicBtn.addEventListener("mousedown", startHold);
+  panicBtn.addEventListener("touchstart", startHold);
+  panicBtn.addEventListener("mouseup", cancelHold);
+  panicBtn.addEventListener("mouseleave", cancelHold);
+  panicBtn.addEventListener("touchend", cancelHold);
+
+  function startHold() {
+    if (active) return;
+    holdTimer = setTimeout(activatePanic, 2000);
+  }
+  function cancelHold() {
+    clearTimeout(holdTimer);
+  }
+
+  // ======== ACTIVATE PANIC ========
+  function activatePanic() {
+    active = true;
+    overlay.classList.add("active");
+    secondsLeft = 20;
+    countdownEl.textContent = secondsLeft;
+    messageEl.textContent = "Emergency mode activated. Cancel within 20 seconds if this was accidental.";
+    navigator.vibrate?.([200, 100, 200, 100, 200]);
+
+    countdownTimer = setInterval(() => {
+      secondsLeft--;
+      if (secondsLeft <= 5) navigator.vibrate?.([100,100,100]);
+      countdownEl.textContent = secondsLeft;
+      beep.currentTime = 0;
+      beep.play();
+      if (secondsLeft <= 0) {
+        clearInterval(countdownTimer);
+        escalateEmergency();
+      }
+    }, 1000);
+  }
+
+  // ======== BUTTON ACTIONS ========
+  cancelBtn.addEventListener("click", cancelEmergency);
+  callBtn.addEventListener("click", () => triggerEmergencyAction("Calling emergency services..."));
+  locationBtn.addEventListener("click", () => triggerEmergencyAction("Sending your live location to contacts..."));
+
+  function cancelEmergency() {
+    clearInterval(countdownTimer);
+    overlay.classList.remove("active", "alert-mode");
+    active = false;
+    siren.pause();
+    siren.currentTime = 0;
+    navigator.vibrate?.(0);
+  }
+
+  // ======== ESCALATE ========
+  function escalateEmergency() {
+    overlay.classList.add("alert-mode");
+    titleEl.textContent = "🚨 EMERGENCY ESCALATION 🚨";
+    messageEl.innerHTML = "<b>Calling emergency services and sharing your location...</b><br><small>Stay calm — help is on the way.</small>";
+    countdownEl.textContent = "⚠️";
+    siren.play();
+    navigator.vibrate?.([500, 200, 500, 200, 1000]);
+    simulateEmergencyActions();
+  }
+
+  function triggerEmergencyAction(text) {
+    overlay.classList.add("alert-mode");
+    titleEl.textContent = "🚨 EMERGENCY ACTION 🚨";
+    messageEl.innerHTML = `<b>${text}</b>`;
+    siren.play();
+    simulateEmergencyActions();
+  }
+
+  function simulateEmergencyActions() {
+    console.log("🚨 Simulated: Sending location + calling services.");
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        console.log(`📍 Location: ${pos.coords.latitude}, ${pos.coords.longitude}`);
+      });
+    }
+    setTimeout(() => {
+      messageEl.innerHTML = "<b>✅ Emergency services have been notified.</b><br>Your location was shared successfully.";
+    }, 6000);
+  }
+</script>
+
+<!-- ===================================================== -->
+<!-- ⚙️ LUNARIS SETTINGS & PRIVACY PANEL — Purple & Black -->
+<!-- ===================================================== -->
+
+<style>
+  /* === Base Styles === */
+  #settingsPanel {
+    width: 90%;
+    max-width: 720px;
+    margin: 80px auto;
+    background: linear-gradient(180deg, #0e0b12 0%, #1a1225 100%);
+    border-radius: 20px;
+    padding: 28px;
+    color: #e4d9ff;
+    font-family: "Poppins", sans-serif;
+    border: 1px solid #3d276d;
+    box-shadow: 0 0 15px rgba(126, 87, 194, 0.25);
+  }
+
+  #settingsPanel h2 {
+    font-family: "Orbitron", sans-serif;
+    font-weight: 600;
+    color: #b388ff;
+    text-shadow: 0 0 8px rgba(179, 136, 255, 0.3);
+    border-bottom: 1px solid rgba(179, 136, 255, 0.3);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+
+  .setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 14px 0;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 14px 16px;
+    border-radius: 10px;
+    transition: background 0.3s;
+  }
+
+  .setting-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .setting-item span {
+    font-size: 15px;
+  }
+
+  .setting-toggle {
+    position: relative;
+    width: 50px;
+    height: 25px;
+  }
+
+  .setting-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: #3a2b4e;
+    transition: 0.4s;
+    border-radius: 25px;
+  }
+
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 19px;
+    width: 19px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #ddd;
+    transition: 0.4s;
+    border-radius: 50%;
+  }
+
+  input:checked + .slider {
+    background-color: #b388ff;
+    box-shadow: 0 0 6px rgba(179, 136, 255, 0.5);
+  }
+
+  input:checked + .slider:before {
+    transform: translateX(24px);
+  }
+
+  select,
+  button {
+    font-family: "Poppins", sans-serif;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    background: #2a2239;
+    color: #e0d7ff;
+    transition: 0.3s;
+  }
+
+  select:hover,
+  button:hover {
+    background: #3a2b52;
+  }
+
+  #settingsPanel button {
+    width: 100%;
+    margin-top: 15px;
+    font-weight: bold;
+  }
+
+  #deleteDataBtn {
+    background: #6b1b1b;
+    color: #fff;
+  }
+
+  #deleteDataBtn:hover {
+    background: #922323;
+  }
+
+  #versionInfo,
+  #locationInfo {
+    text-align: center;
+    font-size: 14px;
+    color: #a791d4;
+    margin-top: 15px;
+  }
+
+  /* Light Theme Preview */
+  body.light-theme {
+    background: #f5f3fc;
+    color: #2d2142;
+  }
+
+  body.light-theme #settingsPanel {
+    background: #ffffff;
+    color: #2d2142;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-color: #d1c4e9;
+  }
+</style>
+
+<div id="settingsPanel">
+  <h2>⚙️ Settings & Privacy</h2>
+
+  <div class="setting-item">
+    <span>AI Voice Alerts</span>
+    <label class="setting-toggle">
+      <input type="checkbox" id="toggleVoiceAlerts">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="setting-item">
+    <span>Alert Sound Type</span>
+    <select id="alertSoundSelect">
+      <option value="voice">Voice</option>
+      <option value="chime">Chime</option>
+      <option value="beep">Beep</option>
+    </select>
+  </div>
+
+  <div class="setting-item">
+    <span>Location Sharing</span>
+    <label class="setting-toggle">
+      <input type="checkbox" id="toggleLocation">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="setting-item">
+    <span>Auto Emergency Call Consent</span>
+    <label class="setting-toggle">
+      <input type="checkbox" id="toggleAutoCall">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="setting-item">
+    <span>Theme</span>
+    <select id="themeSelect">
+      <option value="dark">Dark (Purple)</option>
+      <option value="light">Light</option>
+    </select>
+  </div>
+
+  <div class="setting-item">
+    <span>Account Settings</span>
+    <button id="accountManageBtn" style="width:auto;">Manage</button>
+  </div>
+
+  <button id="exportDataBtn">📤 Export Trip Data</button>
+  <button id="deleteDataBtn">🗑️ Delete All Data</button>
+
+  <div id="versionInfo">Lunaris v2.0.1 — Build 2025-11-09</div>
+  <div id="locationInfo">📍 Detecting location...</div>
+</div>
+
+<script>
+  // ========== Settings References ==========
+  const settingsRefs = {
+    voiceAlerts: document.getElementById("toggleVoiceAlerts"),
+    alertSound: document.getElementById("alertSoundSelect"),
+    location: document.getElementById("toggleLocation"),
+    autoCall: document.getElementById("toggleAutoCall"),
+    theme: document.getElementById("themeSelect"),
+  };
+
+  // ========== Load Settings ==========
+  Object.keys(settingsRefs).forEach(key => {
+    const saved = localStorage.getItem("lunaris_" + key);
+    if (saved !== null) {
+      if (settingsRefs[key].type === "checkbox") {
+        settingsRefs[key].checked = saved === "true";
+      } else {
+        settingsRefs[key].value = saved;
+      }
+    }
+  });
+
+  // Apply theme immediately
+  if (settingsRefs.theme.value === "light") {
+    document.body.classList.add("light-theme");
+  }
+
+  // ========== Save Settings on Change ==========
+  Object.keys(settingsRefs).forEach(key => {
+    settingsRefs[key].addEventListener("change", () => {
+      const val = settingsRefs[key].type === "checkbox" ? settingsRefs[key].checked : settingsRefs[key].value;
+      localStorage.setItem("lunaris_" + key, val);
+
+      if (key === "theme") {
+        if (val === "light") document.body.classList.add("light-theme");
+        else document.body.classList.remove("light-theme");
+      }
+    });
+  });
+
+  // ========== Export Data ==========
+  document.getElementById("exportDataBtn").addEventListener("click", () => {
+    const tripData = localStorage.getItem("lunaris_tripHistory") || "[]";
+    const blob = new Blob([tripData], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Lunaris_TripData.json";
+    link.click();
+  });
+
+  // ========== Delete Data ==========
+  document.getElementById("deleteDataBtn").addEventListener("click", () => {
+    if (confirm("⚠️ Are you sure you want to permanently delete all trip data?")) {
+      localStorage.removeItem("lunaris_tripHistory");
+      alert("✅ All trip data deleted.");
+    }
+  });
+
+  // ========== Account Manage ==========
+  document.getElementById("accountManageBtn").addEventListener("click", () => {
+    alert("🔐 Account management coming soon — connect Lunaris Cloud for sync & recovery.");
+  });
+
+  // ========== Location Info ==========
+  const locInfo = document.getElementById("locationInfo");
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        locInfo.textContent = `📍 ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+      },
+      () => {
+        locInfo.textContent = "📍 Location unavailable (permission denied)";
+      }
+    );
+  } else {
+    locInfo.textContent = "📍 Location not supported on this device";
+  }
+</script>
+
+<!-- MediaPipe FaceMesh + Camera -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.min.js"></script>
+
+<style>
+  #calibrationPopup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #14121a;
+    border-radius: 16px;
+    box-shadow: 0 0 25px rgba(147, 98, 255, 0.2);
+    padding: 20px;
+    width: 90%;
+    max-width: 650px;
+    color: #e0d7ff;
+    font-family: "Poppins", sans-serif;
+    z-index: 9999;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  #calibrationPopup.active {
+    display: flex;
+  }
+
+  #calibrationPopup h3 {
+    color: #b388ff;
+    font-family: "Orbitron", sans-serif;
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+  }
+
+  #calibrationPopup video {
+    border-radius: 10px;
+    width: 100%;
+    max-height: 300px;
+    margin: 10px 0;
+    object-fit: cover;
+  }
+
+  #progressBar {
+    width: 100%;
+    height: 10px;
+    background: #2b1f3f;
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 10px 0;
+  }
+
+  #progressFill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #a45eff, #c27cff);
+    transition: width 0.25s ease;
+  }
+
+  .calib-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .calib-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    font-family: "Poppins", sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+
+  .finish-btn {
+    background: #b388ff;
+    color: #fff;
+  }
+
+  .finish-btn:hover {
+    background: #9f6cff;
+  }
+
+  .redo-btn {
+    background: #322647;
+    color: #e0d7ff;
+  }
+
+  .redo-btn:hover {
+    background: #3d2d56;
+  }
+
+  .close-btn {
+    background: #241a32;
+    color: #aaa;
+  }
+
+  .close-btn:hover {
+    background: #342544;
+  }
+
+  #statusText {
+    margin-top: 5px;
+    font-size: 14px;
+    text-align: center;
+    color: #bda8ff;
+  }
+</style>
+<!-- =============================================== -->
+<!-- 🧠 ADVANCED FACE CALIBRATION MODULE -->
+<!-- =============================================== -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.min.js"></script>
+
+<style>
+  #calibrationPopup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #14121a;
+    border-radius: 16px;
+    box-shadow: 0 0 30px rgba(150, 80, 255, 0.25);
+    padding: 22px;
+    width: 90%;
+    max-width: 650px;
+    color: #e4dcff;
+    font-family: "Poppins", sans-serif;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    z-index: 9999;
+  }
+
+  #calibrationPopup.active { display: flex; animation: fadeIn 0.3s ease; }
+
+  @keyframes fadeIn {
+    from {opacity:0; transform: translate(-50%, -48%);}
+    to {opacity:1; transform: translate(-50%, -50%);}
+  }
+
+  #calibrationPopup video {
+    width: 100%;
+    max-height: 280px;
+    border-radius: 10px;
+    margin-top: 8px;
+    object-fit: cover;
+  }
+
+  #progressBar {
+    width: 100%; height: 10px;
+    background: #2b1f3f;
+    border-radius: 5px; overflow: hidden;
+    margin: 10px 0;
+  }
+  #progressFill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #9c5bff, #c07aff);
+    transition: width 0.2s ease;
+  }
+
+  .calib-buttons { display: flex; gap: 10px; margin-top: 10px; }
+  .calib-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    font-family: "Poppins", sans-serif;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .finish-btn { background:#b388ff; color:white; }
+  .redo-btn { background:#322647; color:#e0d7ff; }
+  .close-btn { background:#241a32; color:#bbb; }
+
+  #statusText { margin-top: 6px; font-size: 14px; color: #bda8ff; text-align: center; }
+</style>
+
+<div id="calibrationPopup">
+  <h3 style="color:#cba7ff; font-family:'Orbitron',sans-serif;">Calibration</h3>
+  <div id="statusText">Initializing camera...</div>
+  <video id="calibVideo" autoplay muted playsinline></video>
+  <div id="progressBar"><div id="progressFill"></div></div>
+  <div class="calib-buttons">
+    <button id="finishBtn" class="calib-btn finish-btn" disabled>Finish</button>
+    <button id="redoBtn" class="calib-btn redo-btn">Redo</button>
+    <button id="closeBtn" class="calib-btn close-btn">Close</button>
+  </div>
+</div>
+
+<audio id="beepSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
+<audio id="chimeSound" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg"></audio>
+
+<script>
+const calibrateBtn = document.getElementById("calibrateBtn");
+const popup = document.getElementById("calibrationPopup");
+const video = document.getElementById("calibVideo");
+const finishBtn = document.getElementById("finishBtn");
+const redoBtn = document.getElementById("redoBtn");
+const closeBtn = document.getElementById("closeBtn");
+const statusText = document.getElementById("statusText");
+const progressFill = document.getElementById("progressFill");
+const beepSound = document.getElementById("beepSound");
+const chimeSound = document.getElementById("chimeSound");
+
+let faceMesh, camera, timeoutTimer;
+let leftEAR = 0, rightEAR = 0, nosePos = 0, headTilt = 0, samples = 0, progress = 0, calibrated = false;
+
+calibrateBtn.onclick = () => {
+  popup.classList.add("active");
+  startCalibration();
+};
+
+redoBtn.onclick = () => {
+  resetCalibration();
+  statusText.textContent = "Redo calibration — please face the camera.";
+};
+
+closeBtn.onclick = () => {
+  stopCamera();
+  popup.classList.remove("active");
+};
+
+finishBtn.onclick = () => {
+  if (calibrated) {
+    localStorage.setItem("lunaris_calibration", JSON.stringify({
+      leftEAR, rightEAR, nosePos, headTilt
+    }));
+    statusText.innerHTML = `✅ Calibrated!<br>Left EAR: ${leftEAR.toFixed(3)} | Right EAR: ${rightEAR.toFixed(3)}<br>
+    Nose Ratio: ${nosePos.toFixed(3)} | Head Tilt: ${headTilt.toFixed(3)}`;
+    chimeSound.play();
+    stopCamera();
+    setTimeout(() => popup.classList.remove("active"), 2500);
+  }
+};
+
+function resetCalibration(){
+  progress=0; samples=0; calibrated=false;
+  leftEAR=0; rightEAR=0; nosePos=0; headTilt=0;
+  progressFill.style.width="0%";
+  finishBtn.disabled=true;
+}
+
+async function startCalibration(){
+  resetCalibration();
+  statusText.textContent = "Align your face in view...";
+  if(!faceMesh) initFaceMesh();
+
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video:true});
+    video.srcObject = stream;
+    camera = new Camera(video, {
+      onFrame: async ()=>{ await faceMesh.send({image: video}); },
+      width:640, height:480
+    });
+    camera.start();
+    timeoutTimer = setTimeout(()=> {
+      if(!calibrated){
+        beepSound.play();
+        alert("Calibration failed. Please ensure your face is visible and try again.");
+        stopCamera();
+        popup.classList.remove("active");
+      }
+    }, 20000);
+  }catch(e){ statusText.textContent="⚠️ Camera access denied."; }
+}
+
+function stopCamera(){
+  if(camera && camera.video.srcObject){
+    camera.video.srcObject.getTracks().forEach(t=>t.stop());
+  }
+  clearTimeout(timeoutTimer);
+}
+
+function initFaceMesh(){
+  faceMesh = new FaceMesh({
+    locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+  });
+  faceMesh.setOptions({
+    maxNumFaces:1, refineLandmarks:true,
+    minDetectionConfidence:0.7, minTrackingConfidence:0.7
+  });
+  faceMesh.onResults(onResults);
+}
+
+function onResults(results){
+  if(!results.multiFaceLandmarks?.length){
+    statusText.textContent="No face detected. Keep your face visible.";
+    progress = Math.max(0, progress - 2);
+    progressFill.style.width = progress + "%";
+    return;
+  }
+
+  const lm = results.multiFaceLandmarks[0];
+  // EAR Calculation (Eye Aspect Ratio)
+  const left = (lm[159].y - lm[145].y);
+  const right = (lm[386].y - lm[374].y);
+  // Nose & Head metrics
+  const nose = lm[1].z;
+  const tilt = lm[10].x - lm[152].x;
+
+  leftEAR += left; rightEAR += right; nosePos += nose; headTilt += tilt;
+  samples++;
+  progress = Math.min(100, progress + 4);
+  progressFill.style.width = progress + "%";
+
+  if(progress >= 100 && samples > 15){
+    leftEAR /= samples; rightEAR /= samples; nosePos /= samples; headTilt /= samples;
+    calibrated = true;
+    finishBtn.disabled = false;
+    statusText.textContent = "✅ Face stable! Press Finish to confirm calibration.";
+    chimeSound.play();
+    clearTimeout(timeoutTimer);
+  } else {
+    statusText.textContent = "Capturing stable facial data...";
+  }
+}
+</script>
+
+</body>
+</html>
